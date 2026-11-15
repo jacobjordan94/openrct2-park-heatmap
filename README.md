@@ -1,114 +1,118 @@
-# Simple OpenRCT2 plugin template with Typescript
+# Park Heatmap
 
-A simple and minimal template for OpenRCT2 plugins, using Typescript, without any unnecessary extra's.
+An OpenRCT2 plugin that shows where your park is struggling. It draws a heatmap of the park, from crowded paths and long queues to hungry, sick or lost guests, litter, vandalism, and paths with no bin or bench nearby, so you can see at a glance where to build, hire or fix things.
 
-Also supports:
-- Automatic plugin reload in OpenRCT2 (hot reload);
-- Out of the box minification to improve file sizes;
-- Support for external NPM packages (like FlexUI).
+The heatmap is drawn isometrically like the game's own map, follows the main camera's rotation and zoom, and updates itself as you build.
 
-## How to start
+| Guest crowding, averaged over 1 minute | Thirsty guests |
+|---|---|
+| ![Guest crowding layer with averaging on: the park's busiest paths glow orange and red, with the main camera's view outlined](screenshots/screenshot-1.png) | ![Thirsty guests layer: red dots mark the few spots where thirsty guests are](screenshots/screenshot-2.png) |
 
-1. Install latest (LTS) version of [Node](https://nodejs.org/en/) and make sure to include NPM and enable the "Add to PATH" option during installation.
-2. Use the green "Use this template" button in the top right corner of this page, or download the project to a location of your choice on your PC.
-3. Open a terminal or command prompt.
-4. Use `cd` to change your current directory to the root folder of this project.
-5. Run `npm install` to install the project's dependencies.
-6. In `./src/plugin.ts`, change the name and author of the plugin to your liking.
-7. In `./rollup.config.js`, change the filename of the outputted plugin.
+## Features
 
----
+- **12 heat layers** covering guest activity and the state of your paths (see [Layers](#layers)).
+- **Follows the camera.** The map turns with the camera's rotation, and zooms with the game's six zoom levels: fully zoomed out shows the whole park, zoomed in shows the area around the camera.
+- **Camera outline.** A grey rectangle shows the area the main view is looking at.
+- **Next hotspot.** Jumps the camera through the 10 hottest areas of the current layer, marking each with a white box.
+- **Average over 1 minute.** Shows a moving average of guest activity over the last minute of game time instead of a live snapshot, so busy areas build up and passing guests leave fading trails. The averages run in the background from the moment the park loads, so they're ready as soon as you tick the box.
+- **Updates as you build.** Placing or removing paths, track, entrances, land or water updates the map straight away.
+- **Remembers your settings.** The selected layer, the averaging choice, and the window's size and position are kept between sessions and across parks.
+- **Keyboard shortcut.** Shift+H opens and closes the heatmap.
 
-## Commands
+## Installation
 
-The template comes with several terminal commands to make developing plugins easier.
+1. Make sure you have **OpenRCT2 v0.5.0 or newer**.
+2. Download `park-heatmap.js` from the Releases page of this repository.
+3. Put it in the `plugin` folder of your OpenRCT2 user directory:
+   - **Windows:** `Documents\OpenRCT2\plugin`
+   - **macOS:** `~/Library/Application Support/OpenRCT2/plugin`
+   - **Linux:** `~/.config/OpenRCT2/plugin` (or `$XDG_CONFIG_HOME/OpenRCT2/plugin`)
 
-`npm run build`
+   You can also open the user directory from the game: the red toolbox on the title screen, then **Open custom content folder**.
+4. Start (or restart) OpenRCT2.
 
-Creates a release build of your plugin. This version is optimized for sharing with others, using Terser to make the file as small as possible. By default, the plugin will be outputted to `./dist/`.
+## Usage
 
-`npm run build:dev`
+Load a park, then open the heatmap from the **map menu** in the top toolbar (**Park Heatmap**), or press **Shift+H**. Press Shift+H again to close it.
 
-Creates a develop build of your plugin. This version is not optimized for sharing, but easier to read in case you want to see the outputted JavaScript. By default, the plugin will be outputted in the plugin folder of the default [OpenRCT2 user directory](#openrct2-user-directory).
+- **Layer dropdown:** choose what the heat shows.
+- **Next hotspot:** moves the camera to the next of the 10 hottest areas.
+- **Average over 1 minute:** switches guest layers between a live snapshot and a one-minute moving average. It's greyed out for map layers, which always show the current state.
+- **Status line:** the total for the layer (for example, "23 lost guests") and the hottest spot's value.
+- **Resize** the window from its bottom-right corner; the map scales to fit.
 
-`npm start` or `npm run start`
+Colours run from blue (low) through green, yellow and orange to red (high), relative to the hottest spot on the map. The base map shows land outside the park in black, park land in dark green, water in blue, paths and queues in grey, and rides in dark grey.
 
-Will start a script that will automatically run `npm run build:dev` every time you make a change to any TypeScript or JavaScript file inside the `./src/` folder.
+### Changing the shortcut
 
-### Output paths
+Go to **Options → Controls → Shortcut keys**, open the last tab (the wrench icon), and scroll to **Toggle Park Heatmap** at the bottom. This works from the title screen too.
 
-These output paths can be changed in `rollup.config.js`. In this file you can also change the outputted filename of the plugin.
+## Layers
 
----
+The need thresholds match the points at which the game itself makes guests think about that need.
 
-## Access game logs
+| Layer | What gets heat |
+|---|---|
+| Guest crowding | Every guest walking in the park |
+| Queue crowding | Guests standing in queue lines |
+| Unhappy guests | Guests with happiness below 96 (out of 255) |
+| Hungry guests | Hunger 10 or below, and not carrying food or drink |
+| Thirsty guests | Thirst 25 or below, and not carrying food or drink |
+| Need a toilet | Toilet need 160 or above |
+| Feeling sick | Nausea 140 or above; very sick guests (200 or above, who head for first aid) count double |
+| Lost guests | Guests the game marks as lost |
+| Vandalism | Broken bins, benches and lamps on paths |
+| Far from a bin | Path tiles more than 6 tiles' walk from a working bin; hotter the further away |
+| Far from a bench | Path tiles more than 8 tiles' walk from a working bench; hotter the further away |
+| Litter & vomit | Litter on the ground; vomit counts double |
 
-When your plugin is not loading properly, it may be useful to be able to read the logs of the game to see if there are any errors. Furthermore, if you use the `console.log` function, the resulting logs can be read here as well.
+**Why bin distance matters:** guests don't look for bins. A guest carrying trash only uses a bin if they walk onto its tile, and otherwise eventually drops it wherever they are. Broken bins don't count, so vandalism leads straight to litter. That's why these layers measure walking distance along paths to the nearest *working* bin or bench.
 
-### Windows
+**Map layers** (Vandalism, Far from a bin, Far from a bench) show the state of your paths rather than guest activity, so they're never averaged: a repaired bench disappears from the map immediately.
 
-1. Navigate to the folder where [OpenRCT2 is installed](#openrct2-installation-directory).
-2. Launch the `openrct2.com` file located there (the MS-DOS application).
-	- If file extensions are hidden, make sure to [enable them](https://support.microsoft.com/en-us/windows/common-file-name-extensions-in-windows-da4a4430-8e76-89c5-59f7-1cdbbc75cb01).
+## Known limitations
 
-### MacOS
+- **Guests on rides** aren't on any map tile, so they don't appear on guest layers. The guest count will be lower than the park's total.
+- **Custom path items:** the plugin API doesn't say whether a path item is a bin or a bench, so the plugin recognises them by object name. All vanilla bins and benches are recognised; custom objects with unusual names may not be.
+- **Heights:** the heatmap is drawn flat. Paths at different heights on neighbouring tiles count as connected for bin and bench distances, and on hilly terrain the camera outline's edges can sit slightly off (its centre stays accurate).
+- **Clicking the map** doesn't move the camera: the plugin API doesn't report where the mouse is on a custom drawing. Use **Next hotspot** instead.
 
-1. Launch a terminal or another command-line prompt.
-2. Using the `cd` command, navigate to the folder where [OpenRCT2 is installed](#openrct2-installation-directory).
-3. Run `open OpenRCT2.app/Contents/MacOS/OpenRCT2` to launch OpenRCT2 with logging enabled.
+## Development
 
----
+The plugin is written in TypeScript and bundled with Rollup. It was started from [OpenRCT2-Simple-Typescript-Template](https://github.com/Basssiiie/OpenRCT2-Simple-Typescript-Template).
 
-## OpenRCT2 API
+### Setup
 
-The OpenRCT2 "application programming interface" is automatically installed as a [NPM package](./package.json) named [`@openrct2/types`](https://www.npmjs.com/package/@openrct2/types) after you have used `npm install`.
+1. Install [Node.js](https://nodejs.org/) (LTS), for example with [nvm](https://github.com/nvm-sh/nvm): `nvm install --lts`.
+2. Run `npm install` in this folder.
 
-This package contains a file named [`./node_modules/@openrct2/types/openrct2.d.ts`](./node_modules/@openrct2/types/openrct2.d.ts), which is a technical description of all the functions that can be used to interact with OpenRCT2. Furthermore, programming editors like VSCode automatically pick up on this file, and use it to error-check and suggest completions for your code whenever possible.
+### Commands
 
-If new APIs have been added, and they are not yet available in your `openrct2.d.ts` file, you can run `npm update @openrct2/types` in a terminal to update the types to a newer version.
+| Command | What it does |
+|---|---|
+| `npm start` | Rebuilds a readable development build into your OpenRCT2 plugin folder every time a file in `src/` changes. |
+| `npm run build:dev` | Makes one development build into your OpenRCT2 plugin folder. |
+| `npm run build` | Makes a minified release build at `dist/park-heatmap.js`. |
 
----
+For **hot reload**, set `enable_hot_reloading = true` in OpenRCT2's `config.ini`, run `npm start`, and load a park: the game reloads the plugin whenever the build changes. A change to the plugin's type or keyboard shortcut needs a full game restart.
 
-## Hot reload
+### Code layout
 
-This project supports the [OpenRCT2 hot reload feature](https://github.com/OpenRCT2/OpenRCT2/blob/master/distribution/scripting.md#writing-scripts) for development.
+| File | Contents |
+|---|---|
+| `src/plugin.ts` | Plugin registration (name, version, type, API version). |
+| `src/startup.ts` | Registers the menu item and shortcut, and resets the heat model on each park load. |
+| `src/heatmap/heatModel.ts` | Background model: keeps the map scan current and the moving averages warm. |
+| `src/heatmap/layers.ts` | Layer definitions and the shared pass over guests. |
+| `src/heatmap/pathLayers.ts` | Vandalism and bin/bench distance layers. |
+| `src/heatmap/mapScan.ts` | Scans tiles into the base map (land, water, paths, queues, rides) and the park's bounds. |
+| `src/heatmap/mapWatcher.ts` | Turns building actions into areas of the map to rescan. |
+| `src/heatmap/window.ts` | The heatmap window: layout, isometric drawing, camera tracking, hotspots. |
+| `src/heatmap/settings.ts` | Saved settings (layer, averaging, window size and position). |
+| `src/heatmap/palette.ts` | Palette colours for the base map, heat ramp and outlines. |
 
-1. Navigate to your [OpenRCT2 user directory](#openrct2-user-directory) and open the `config.ini` file.
-2. Enable hot reload by setting `enable_hot_reloading = true` in `config.ini`.
-3. Run `npm start` in the directory of this project to start the hot reload server.
-4. Start the OpenRCT2 and load a save or start a new game.
-5. Each time you save any of the files in `./src/`, the server will compile `./src/registerPlugin.ts` and place compiled plugin file inside your local OpenRCT2 plugin directory.
-6. OpenRCT2 will notice file changes and it will reload the plugin.
+The plugin is `intransient`, so it starts when the game launches (letting the shortcut be rebound from the title screen) and keeps running across park loads. The heatmap itself only works in a played park.
 
----
+## License
 
-## Folders
-
-### OpenRCT2 installation directory
-
-This is the directory where the game is installed.
-
-- **Windows:** usually `%LocalAppData%/OpenRCT2/bin/` when using the launcher, which should resolve to `C:/Users/<YOUR NAME>/AppData/Local/OpenRCT2/bin/`. If you used an installer, then the game may be in `C:/Program Files/OpenRCT2/` instead.
-- **MacOS:** the folder where the `OpenRCT2.app` application file was placed.
-- **Linux:** depends on the distro, but likely either `/usr/share/openrct2` when installed through a package manager, or mounted in `/tmp` when using an AppImage.
-
-### OpenRCT2 user directory
-
-This is the directory where the game stores user data, like save games and plugins.
-
-- **Windows:** usually `Documents/OpenRCT2/` or `C:/Users/<YOUR NAME>/Documents/OpenRCT2/`.
-- **MacOS:** usually `/Users/<YOUR NAME>/Library/Application Support/OpenRCT2/`. Note that `Library` is a hidden folder in your user directory, so by default it will not show up in Finder.
-- **Linux:** usually `/home/<YOUR NAME>/.config`, `$HOME/.config`, or where the environment variable `$XDG_CONFIG_HOME` points to if it's set.
-
-You can also open this folder from inside OpenRCT2, by selecting **"Open custom content folder"** in the dropdown under the red toolbox in the main menu.
-
----
-
-## Dependencies
-
-The following libraries and tools are used in this template:
-
-- **NodeJS** is the JavaScript engine used to develop and run code when the game is not running.
-- **NPM** is a library and package manager for JavasScript and TypeScript and can be used to install new packages and update existing packages in the project.
-- **TypeScript** is a expansion language to JavaScript that adds type checking when you are writing the code. It allows you to specify rules for how objects and values look like, so TypeScript can report back if your code follows these rules (instead of crashes or errors in-game).
-- **Rollup** bundles all source code, runs it through some plugins like TypeScript, and then outputs a single JavaScript plugin file. Its built-in watch mode is used by `npm start` to rebuild the plugin whenever a source file changes.
+[MIT](LICENSE)
