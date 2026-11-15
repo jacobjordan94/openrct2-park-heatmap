@@ -1,10 +1,10 @@
 import { startup } from "./startup";
 
 registerPlugin({
-	name: "Name of your plugin",
+	name: "Park Heatmap",
 	version: "1.0",
-	authors: [ "Your name" ],
-	type: "remote",
+	authors: [ "Jacob Jordan" ],
+	type: "local",
 	licence: "MIT",
 	/**
 	 * This field determines which OpenRCT2 API version to use. It's best to always use the

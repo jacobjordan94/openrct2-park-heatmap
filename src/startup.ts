@@ -1,20 +1,14 @@
-function onClickMenuItem()
-{
-	// Write code here that should happen when the player clicks the menu item under the map icon.
-
-	console.log("Hello world!");
-}
+import { startHeatModel } from "./heatmap/heatModel";
+import { openHeatmapWindow } from "./heatmap/window";
 
 
-export function startup()
-{
-	// Write code here that should happen on startup of the plugin.
-
-
-
-	// Register a menu item under the map icon:
-	if (typeof ui !== "undefined")
-	{
-		ui.registerMenuItem("My plugin", () => onClickMenuItem());
+export function startup() {
+	// The heatmap is UI-only, so skip headless servers and the title screen.
+	if (typeof ui === "undefined" || context.mode !== "normal") {
+		return;
 	}
+
+	// Runs in the background so moving averages are already warm when the window opens.
+	startHeatModel();
+	ui.registerMenuItem("Park Heatmap", () => openHeatmapWindow());
 }
