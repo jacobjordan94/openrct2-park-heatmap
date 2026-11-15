@@ -1,6 +1,7 @@
 import { applyMapChanges, getAverage, getMapVersion, getScan } from "./heatModel";
 import { computeLayer, HeatLayer, layers, Sparse } from "./layers";
 import { MapScan } from "./mapScan";
+import { loadSettings, saveAverage, saveGeometry, saveLayer, WindowGeometry } from "./settings";
 import { baseColours, cameraColour, heatRamp, outlineColour, textWhite, transparent } from "./palette";
 
 
@@ -22,7 +23,18 @@ function mapHeightFor(windowHeight: number): number { return windowHeight - mapT
 function legendYFor(windowHeight: number): number { return windowHeight - legendHeight - 4; }
 function legendWidthFor(windowWidth: number): number { return windowWidth - margin - resizeGrip - 5; }
 
+const defaultWidth = 280;
+const defaultHeight = 343;
 const minWindowWidth = 240;
+const minWindowHeight = 200;
+const maxWindowWidth = 1200;
+const maxWindowHeight = 1000;
+// Window size and position are saved once they've been unchanged this many frames (~1 second),
+// so dragging or resizing doesn't write to disk every frame.
+const geometrySaveDelay = 40;
+// How much of the title bar must stay on screen when restoring, so the window can be dragged back.
+const titleBarHeight = 15;
+const reachableEdge = 40;
 const rowGap = 2;
 
 /**
@@ -99,6 +111,9 @@ let lastRotation = -1;
 let lastZoom = 0;
 // Main viewport's view rectangle when last drawn, to redraw the camera outline when it moves.
 let lastView = "";
+// The window's geometry as last seen, and the frame it last changed (-1 when already saved).
+let geometry: WindowGeometry | null = null;
+let geometryChangedAt = -1;
 
 
 export function openHeatmapWindow(): void {
@@ -108,10 +123,31 @@ export function openHeatmapWindow(): void {
 		return;
 	}
 
-	const width = 280, height = 343;
+	// Restore the last layer, averaging choice, size and position.
+	const settings = loadSettings();
+	for (let i = 0; i < layers.length; i++) {
+		if (layers[i].name === settings.layer) {
+			layerIndex = i;
+		}
+	}
+	showAverage = settings.average;
+	const saved = settings.geometry;
+	const width = clamp(saved ? saved.width : defaultWidth, minWindowWidth, maxWindowWidth);
+	const height = clamp(saved ? saved.height : defaultHeight, minWindowHeight, maxWindowHeight);
+	// Restore the position as left, even partly off-screen like the game allows; only pull it
+	// back if the title bar would be out of reach (e.g. the resolution shrank since saving).
+	const position = saved
+		? {
+			x: clamp(saved.x, reachableEdge - width, ui.width - reachableEdge),
+			y: clamp(saved.y, 0, ui.height - titleBarHeight),
+		}
+		: undefined;
+
 	const row = topRowFor(width);
 	lastWidth = width;
 	lastHeight = height;
+	geometry = null;
+	geometryChangedAt = -1;
 	scan = getScan();
 	lastMapVersion = getMapVersion();
 	hotspotIndex = -1;
@@ -120,9 +156,11 @@ export function openHeatmapWindow(): void {
 	ui.openWindow({
 		classification,
 		title: "Park Heatmap",
+		x: position ? position.x : undefined,
+		y: position ? position.y : undefined,
 		width, height,
-		minWidth: minWindowWidth, minHeight: 200,
-		maxWidth: 1200, maxHeight: 1000,
+		minWidth: minWindowWidth, minHeight: minWindowHeight,
+		maxWidth: maxWindowWidth, maxHeight: maxWindowHeight,
 		widgets: [
 			{
 				type: "dropdown", name: "layer",
@@ -131,6 +169,7 @@ export function openHeatmapWindow(): void {
 				selectedIndex: layerIndex,
 				onChange: index => {
 					layerIndex = index;
+					saveLayer(layers[index].name);
 					hotspotIndex = -1;
 					const window = ui.getWindow(classification);
 					if (window) {
@@ -157,6 +196,7 @@ export function openHeatmapWindow(): void {
 				isDisabled: !!currentLayer().mapState,
 				onChange: checked => {
 					showAverage = checked;
+					saveAverage(checked);
 					hotspotIndex = -1;
 					selectDisplayedHeat();
 					redraw();
@@ -186,6 +226,9 @@ export function openHeatmapWindow(): void {
 		],
 		onUpdate: () => onUpdate(),
 		onClose: () => {
+			if (geometry && geometryChangedAt >= 0) {
+				saveGeometry(geometry); // Moved or resized just before closing.
+			}
 			scan = null;
 			bins = {};
 			tileHeat = {};
@@ -245,6 +288,7 @@ function onUpdate(): void {
 	}
 
 	ticks++;
+	trackGeometry(window);
 	if (ticks % refreshTicks === 0) {
 		refreshHeat();
 		dirty = true;
@@ -252,6 +296,26 @@ function onUpdate(): void {
 	if (dirty) {
 		redraw();
 	}
+}
+
+
+// Saves the window's size and position once they've settled after a move or resize.
+function trackGeometry(window: Window): void {
+	const current = { x: window.x, y: window.y, width: window.width, height: window.height };
+	if (!geometry || current.x !== geometry.x || current.y !== geometry.y
+		|| current.width !== geometry.width || current.height !== geometry.height) {
+		// The first frame only records the starting geometry; later changes need saving.
+		geometryChangedAt = geometry ? ticks : -1;
+		geometry = current;
+	} else if (geometryChangedAt >= 0 && ticks - geometryChangedAt >= geometrySaveDelay) {
+		saveGeometry(geometry);
+		geometryChangedAt = -1;
+	}
+}
+
+
+function clamp(value: number, min: number, max: number): number {
+	return Math.max(min, Math.min(max, value));
 }
 
 
