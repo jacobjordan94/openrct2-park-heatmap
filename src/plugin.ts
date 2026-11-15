@@ -4,7 +4,7 @@ registerPlugin({
 	name: "Park Heatmap",
 	version: "1.0",
 	authors: [ "Jacob Jordan" ],
-	type: "local",
+	type: "intransient",
 	licence: "MIT",
 	/**
 	 * This field determines which OpenRCT2 API version to use. It's best to always use the

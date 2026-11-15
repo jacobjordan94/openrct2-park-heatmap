@@ -33,23 +33,49 @@ let averages: { [layerIndex: number]: Sparse } = {};
 let lastSampleTick = -1;
 
 
-// Starts scanning, watching for building and averaging. Call once when the park loads.
-export function startHeatModel(): void {
-	scan = scanMap();
+let subscribed = false;
+
+
+/**
+ * Starts the model for the park that's loaded now: rescans the map and clears the averages.
+ * The plugin is intransient (it runs from game launch, across park loads), so this is called
+ * on every park load; its event subscriptions are only made the first time. Outside a played
+ * park (title screen, editors) the model stays idle.
+ */
+export function resetHeatModel(): void {
+	if (!subscribed) {
+		subscribed = true;
+		watchMapChanges(change => {
+			if (!scan) {
+				return;
+			}
+			if (change === "all") {
+				pendingFullRescan = true;
+			} else {
+				pendingAreas.push(change);
+			}
+		});
+		context.subscribe("interval.tick", () => {
+			if (!scan) {
+				// Safety net in case the park-load hook fired before the game mode was updated.
+				if (context.mode === "normal") {
+					resetHeatModel();
+				}
+				return;
+			}
+			applyMapChanges();
+			if (date.ticksElapsed % sampleTicks === 0) {
+				sample();
+			}
+		});
+	}
+
+	pendingAreas = [];
+	pendingFullRescan = false;
+	averages = {};
+	lastSampleTick = -1;
+	scan = (context.mode === "normal") ? scanMap() : null;
 	mapVersion++;
-	watchMapChanges(change => {
-		if (change === "all") {
-			pendingFullRescan = true;
-		} else {
-			pendingAreas.push(change);
-		}
-	});
-	context.subscribe("interval.tick", () => {
-		applyMapChanges();
-		if (date.ticksElapsed % sampleTicks === 0) {
-			sample();
-		}
-	});
 	sample();
 }
 

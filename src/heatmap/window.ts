@@ -116,7 +116,21 @@ let geometry: WindowGeometry | null = null;
 let geometryChangedAt = -1;
 
 
+// Closes the window if it's open, otherwise opens it (for the keyboard shortcut).
+export function toggleHeatmapWindow(): void {
+	const existing = ui.getWindow(classification);
+	if (existing) {
+		existing.close();
+	} else {
+		openHeatmapWindow();
+	}
+}
+
+
 export function openHeatmapWindow(): void {
+	if (!getScan()) {
+		return; // Not in a played park (title screen or an editor).
+	}
 	const existing = ui.getWindow(classification);
 	if (existing) {
 		existing.bringToFront();
